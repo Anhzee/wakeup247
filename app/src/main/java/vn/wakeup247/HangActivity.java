@@ -1,6 +1,7 @@
 package vn.wakeup247;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.content.Intent;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -24,13 +25,18 @@ public class HangActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private TextView clock;
     private TextView session;
+    private boolean lockRequestIssued;
+    private boolean lockWasActive;
+    private boolean exiting;
 
     private final Runnable updater = new Runnable() {
         @Override public void run() {
             if (!AppState.isActive(HangActivity.this)) {
+                leaveLockTask();
                 finishAndRemoveTask();
                 return;
             }
+            monitorLockTask();
             clock.setText(new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date()));
             long endAt = AppState.endAt(HangActivity.this);
             if (endAt == 0) {
@@ -76,7 +82,7 @@ public class HangActivity extends Activity {
         clock.setGravity(android.view.Gravity.CENTER);
         session = text("ĐANG TREO", 12, 0xFF25412D);
         session.setGravity(android.view.Gravity.CENTER);
-        TextView note = text("Màn hình đang được giữ thức\nThông báo vẫn hiển thị bình thường", 12, 0xFF1D2226);
+        TextView note = text("ĐÃ KHÓA ĐIỀU HƯỚNG\nDùng bong bóng chat/cuộc gọi rồi đóng để quay lại", 12, 0xFF1D2226);
         note.setGravity(android.view.Gravity.CENTER);
         note.setPadding(0, dp(12), 0, 0);
         info.addView(clock, new LinearLayout.LayoutParams(-1, -2));
@@ -85,6 +91,8 @@ public class HangActivity extends Activity {
         root.addView(info, infoLp);
 
         SlideToExit slider = new SlideToExit(this, () -> {
+            exiting = true;
+            leaveLockTask();
             startService(new Intent(this, HangService.class).setAction(HangService.ACTION_STOP));
             finishAndRemoveTask();
         });
@@ -126,6 +134,8 @@ public class HangActivity extends Activity {
                     .setAction(HangService.ACTION_START)
                     .putExtra(HangService.EXTRA_DURATION_MS, 0L));
         }
+        enterImmersive();
+        handler.postDelayed(this::requestLockTaskOnce, 350L);
         handler.post(updater);
     }
 
@@ -136,6 +146,57 @@ public class HangActivity extends Activity {
 
     @Override public void onBackPressed() {
         // Deliberately ignored. The slide control prevents accidental exits.
+    }
+
+    @Override protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        // Home/Recents should be consumed by screen pinning. Reassert immersive
+        // mode if an OEM briefly exposes its navigation gesture UI.
+        if (!exiting) handler.postDelayed(this::enterImmersive, 100L);
+    }
+
+    private void requestLockTaskOnce() {
+        if (exiting || lockRequestIssued || !AppState.isActive(this)) return;
+        if (lockTaskState() != ActivityManager.LOCK_TASK_MODE_NONE) {
+            lockWasActive = true;
+            return;
+        }
+        lockRequestIssued = true;
+        try {
+            startLockTask();
+        } catch (RuntimeException ignored) {
+            // Some OEMs require Screen pinning to be enabled manually in Security settings.
+        }
+    }
+
+    private void monitorLockTask() {
+        int state = lockTaskState();
+        if (state != ActivityManager.LOCK_TASK_MODE_NONE) {
+            lockWasActive = true;
+            return;
+        }
+        // If the task was unpinned through a system gesture while the session is
+        // still active, immediately request pinning again. The guarded slide is
+        // the intended way to leave the session.
+        if (lockWasActive && !exiting) {
+            lockWasActive = false;
+            lockRequestIssued = false;
+            handler.post(this::requestLockTaskOnce);
+        }
+    }
+
+    private int lockTaskState() {
+        ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+        return manager.getLockTaskModeState();
+    }
+
+    private void leaveLockTask() {
+        if (lockTaskState() == ActivityManager.LOCK_TASK_MODE_NONE) return;
+        try {
+            stopLockTask();
+        } catch (RuntimeException ignored) {
+            // The OS may already have ended pinning for an emergency/system call.
+        }
     }
 
     private int dp(int value) {

@@ -20,6 +20,7 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:launchMode="singleTask"
+            android:lockTaskMode="normal"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:theme="@style/Theme.WakeUp247.Black" />
