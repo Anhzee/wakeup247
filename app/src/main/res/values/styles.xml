@@ -10,7 +10,6 @@
     </style>
 
     <style name="Theme.WakeUp247.Black" parent="Theme.WakeUp247">
-        <item name="android:windowFullscreen">true</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowDisablePreview">true</item>

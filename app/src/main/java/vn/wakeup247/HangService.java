@@ -10,12 +10,16 @@ import android.content.BroadcastReceiver;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Color;
+import android.graphics.PixelFormat;
 import android.os.BatteryManager;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.provider.Settings;
 import android.service.quicksettings.TileService;
+import android.view.Gravity;
+import android.view.WindowManager;
 
 import java.util.Locale;
 
@@ -29,6 +33,8 @@ public class HangService extends Service {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private PowerManager.WakeLock wakeLock;
+    private WindowManager windowManager;
+    private GuardView guardOverlay;
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             if (!Intent.ACTION_SCREEN_OFF.equals(intent.getAction()) || !AppState.isActive(context)) return;
@@ -83,6 +89,11 @@ public class HangService extends Service {
             stopSession();
             return START_NOT_STICKY;
         }
+        if (!Settings.canDrawOverlays(this)) {
+            AppState.setActive(this, false, 0L);
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         if (ACTION_ADD_30.equals(action)) {
             long current = AppState.endAt(this);
             long base = Math.max(System.currentTimeMillis(), current);
@@ -98,6 +109,10 @@ public class HangService extends Service {
 
         acquireWakeLock();
         startForeground(NOTIFICATION_ID, buildNotification(AppState.endAt(this)));
+        if (!showGuardOverlay()) {
+            stopSession();
+            return START_NOT_STICKY;
+        }
         handler.removeCallbacks(ticker);
         handler.post(ticker);
         requestTileUpdate();
@@ -110,6 +125,42 @@ public class HangService extends Service {
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "WakeUp247:AutomationSession");
         wakeLock.setReferenceCounted(false);
         wakeLock.acquire();
+    }
+
+    private boolean showGuardOverlay() {
+        if (guardOverlay != null) return true;
+        try {
+            windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+            guardOverlay = new GuardView(this, this::stopSession);
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+                    PixelFormat.OPAQUE);
+            params.gravity = Gravity.TOP | Gravity.START;
+            int dim = AppState.prefs(this).getInt(AppState.KEY_DIM_LEVEL, 1);
+            params.screenBrightness = dim == 0 ? 0.01f : dim == 1 ? 0.03f : 0.08f;
+            if (android.os.Build.VERSION.SDK_INT >= 28) {
+                params.layoutInDisplayCutoutMode =
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            }
+            windowManager.addView(guardOverlay, params);
+            return true;
+        } catch (RuntimeException error) {
+            guardOverlay = null;
+            return false;
+        }
+    }
+
+    private void hideGuardOverlay() {
+        if (guardOverlay == null || windowManager == null) return;
+        try {
+            windowManager.removeViewImmediate(guardOverlay);
+        } catch (RuntimeException ignored) {
+            // The system may already have removed it after permission revocation.
+        }
+        guardOverlay = null;
     }
 
     private Notification buildNotification(long endAt) {
@@ -168,6 +219,7 @@ public class HangService extends Service {
 
     private void stopSession() {
         handler.removeCallbacks(ticker);
+        hideGuardOverlay();
         AppState.setActive(this, false, 0L);
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         requestTileUpdate();
@@ -183,6 +235,7 @@ public class HangService extends Service {
 
     @Override public void onDestroy() {
         handler.removeCallbacks(ticker);
+        hideGuardOverlay();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         unregisterReceiver(screenReceiver);
         super.onDestroy();

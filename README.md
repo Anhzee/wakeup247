@@ -7,7 +7,8 @@
 - Phiên treo vô hạn, 1/5/15/30 phút, 1/2 giờ hoặc số phút tùy chọn.
 - Foreground service và thông báo trạng thái có nút **+30 phút** / **Dừng**.
 - Màn hình đen, độ sáng rất thấp, ẩn thanh điều hướng và chống chạm nhầm bằng thao tác trượt.
-- Screen Pinning khóa Home, Recent, cử chỉ cạnh và ngăn thông báo mở sang ứng dụng khác; chỉ bỏ ghim khi trượt dừng.
+- Lớp bảo vệ nằm trên các ứng dụng: Home/Recent có thể đổi tác vụ phía dưới nhưng không làm lộ hoặc thao tác được app đó trước khi trượt dừng.
+- Thanh thông báo, nội dung mở rộng, trả lời nhanh và điều khiển nhạc của System UI vẫn hoạt động.
 - Quick Settings tile **Treo máy** để bật vô hạn hoặc dừng nhanh.
 - Hiển thị phía trên màn hình khóa; khi bấm nút nguồn trong phiên treo, app thử bật lại màn hình bảo vệ.
 - Khôi phục phiên sau khi khởi động máy và tùy chọn dừng khi pin thấp.
@@ -29,4 +30,4 @@ WakeUp 24/7 giữ CPU và màn hình hoạt động, nhờ đó thiết bị th�
 
 Android và từng ROM có thể vẫn tắt màn hình khi bấm nút nguồn; app sẽ thử đánh thức lại trong phiên treo nhưng hãng máy có quyền chặn hành vi này. Thông báo nổi có xuất hiện hay không phụ thuộc kênh thông báo của chính ứng dụng gửi.
 
-Cuộc gọi hệ thống và bong bóng chat có thể hiển thị phía trên màn hình ghim nếu ROM cho phép. Khi đóng cuộc gọi/bong bóng, màn hình treo vẫn nằm bên dưới. Android không cho ứng dụng thường tùy ý allowlist ứng dụng khác trong Lock Task; khả năng đó chỉ dành cho Device Owner/kiosk được quản trị doanh nghiệp.
+Cuộc gọi hệ thống và bong bóng chat có thể hiển thị phía trên lớp bảo vệ nếu ROM cho phép. Khi đóng cuộc gọi/bong bóng, màn hình treo vẫn nằm bên dưới. Cơ chế này cần quyền đặc biệt **Hiển thị trên ứng dụng khác** và không tự khóa thiết bị khi bắt đầu phiên.

@@ -108,6 +108,9 @@ public class MainActivity extends Activity {
         Button notify = secondaryButton("Cho phép thông báo hệ thống");
         notify.setOnClickListener(v -> requestNotifications());
         root.addView(notify);
+        Button overlay = secondaryButton("Cho phép hiển thị trên ứng dụng khác");
+        overlay.setOnClickListener(v -> requestOverlayPermission());
+        root.addView(overlay);
         Button battery = secondaryButton("Tắt tối ưu pin cho WakeUp 24/7");
         battery.setOnClickListener(v -> openBatteryPermission());
         root.addView(battery);
@@ -249,6 +252,13 @@ public class MainActivity extends Activity {
             refreshStatus();
             return;
         }
+        if (!Settings.canDrawOverlays(this)) {
+            Toast.makeText(this,
+                    "Cần cho phép Hiển thị trên ứng dụng khác để khóa màn hình treo",
+                    Toast.LENGTH_LONG).show();
+            requestOverlayPermission();
+            return;
+        }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 247);
@@ -282,6 +292,19 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 247);
         } else {
             Toast.makeText(this, "Phiên bản Android này đã cho phép sẵn", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void requestOverlayPermission() {
+        if (Settings.canDrawOverlays(this)) {
+            Toast.makeText(this, "Quyền lớp bảo vệ đã được bật", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName())));
+        } catch (RuntimeException ignored) {
+            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION));
         }
     }
 
@@ -321,10 +344,13 @@ public class MainActivity extends Activity {
         boolean notification = Build.VERSION.SDK_INT < 33
                 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
         boolean battery = getSystemService(PowerManager.class).isIgnoringBatteryOptimizations(getPackageName());
+        boolean overlay = Settings.canDrawOverlays(this);
         permissionSummary.setText((notification ? "✓" : "!") + " Thông báo hệ thống\n"
+                + (overlay ? "✓" : "!") + " Lớp bảo vệ trên ứng dụng khác\n"
                 + (battery ? "✓" : "!") + " Không giới hạn pin\n"
                 + "• Hãy cài riêng app auto/Telegram thành Không hạn chế");
-        permissionSummary.setTextColor(notification && battery ? 0xFF78E08F : 0xFFFFC866);
+        permissionSummary.setTextColor(notification && overlay && battery
+                ? 0xFF78E08F : 0xFFFFC866);
         boolean active = AppState.isActive(this);
         startButton.setText(active ? "DỪNG PHIÊN TREO" : "BẮT ĐẦU TREO");
         startButton.setBackground(round(active ? 0xFFFF6B6B : 0xFF78E08F, 16));
