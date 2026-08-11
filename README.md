@@ -9,6 +9,7 @@
 - Màn hình đen, độ sáng rất thấp, ẩn thanh điều hướng và chống chạm nhầm bằng thao tác trượt.
 - Lớp bảo vệ nằm trên các ứng dụng: Home/Recent có thể đổi tác vụ phía dưới nhưng không làm lộ hoặc thao tác được app đó trước khi trượt dừng.
 - Thanh thông báo, nội dung mở rộng, trả lời nhanh và điều khiển nhạc của System UI vẫn hoạt động.
+- Thanh trạng thái và điều hướng mặc định ẩn; vuốt từ mép trên để hiện bảng thông báo rồi tự ẩn lại khi đóng.
 - Quick Settings tile **Treo máy** để bật vô hạn hoặc dừng nhanh.
 - Hiển thị phía trên màn hình khóa; khi bấm nút nguồn trong phiên treo, app thử bật lại màn hình bảo vệ.
 - Khôi phục phiên sau khi khởi động máy và tùy chọn dừng khi pin thấp.
