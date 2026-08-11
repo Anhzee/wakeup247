@@ -9,6 +9,7 @@
 - Màn hình đen, độ sáng rất thấp, ẩn thanh điều hướng và chống chạm nhầm bằng thao tác trượt.
 - Lớp bảo vệ nằm trên các ứng dụng: Home/Recent có thể đổi tác vụ phía dưới nhưng không làm lộ hoặc thao tác được app đó trước khi trượt dừng.
 - Thanh thông báo, nội dung mở rộng, trả lời nhanh và điều khiển nhạc của System UI vẫn hoạt động.
+- Bong bóng chat dạng multi-window có thể hiện phía trên nền treo để đọc và trả lời; overlay bảo vệ tự bật lại khi màn hình treo thực sự bị rời khỏi.
 - Thanh trạng thái và điều hướng mặc định ẩn; vuốt từ mép trên để hiện bảng thông báo rồi tự ẩn lại khi đóng.
 - Nền bảo vệ không nhận chạm; chỉ thanh trượt là cửa sổ tương tác, nên cử chỉ mép trên được chuyển cho System UI mà app phía dưới vẫn bị che/chặn.
 - Khi phiên đã chạy, chạm phím nhanh sẽ mở lại màn hình treo thay vì dừng nhầm phiên; trên màn hình khóa dùng đường mở Activity riêng của TileService.

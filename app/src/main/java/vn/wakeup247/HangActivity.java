@@ -73,7 +73,8 @@ public class HangActivity extends Activity {
         boolean wasActive = AppState.isActive(this);
         startForegroundService(new Intent(this, HangService.class)
                 .setAction(wasActive ? HangService.ACTION_ENSURE : HangService.ACTION_START)
-                .putExtra(HangService.EXTRA_DURATION_MS, 0L));
+                .putExtra(HangService.EXTRA_DURATION_MS, 0L)
+                .putExtra(HangService.EXTRA_GUARD_ACTIVITY_VISIBLE, true));
         hideSystemBars();
         handler.post(stateWatcher);
     }
@@ -86,6 +87,9 @@ public class HangActivity extends Activity {
         // Home, Recents, contextual AI and external activities do, so reclaim the
         // foreground immediately instead of waiting for the service watchdog.
         if (AppState.isActive(this)) {
+            startService(new Intent(this, HangService.class)
+                    .setAction(HangService.ACTION_ENSURE)
+                    .putExtra(HangService.EXTRA_GUARD_ACTIVITY_VISIBLE, false));
             handler.postDelayed(this::restoreGuardAboveKeyguard, 80L);
         }
         super.onPause();

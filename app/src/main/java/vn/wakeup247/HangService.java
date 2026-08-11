@@ -32,6 +32,7 @@ public class HangService extends Service {
     static final String ACTION_STOP = "vn.wakeup247.STOP";
     static final String ACTION_ADD_30 = "vn.wakeup247.ADD_30";
     static final String EXTRA_DURATION_MS = "duration_ms";
+    static final String EXTRA_GUARD_ACTIVITY_VISIBLE = "guard_activity_visible";
     static final String CHANNEL_ID = "hang_session";
     static final int NOTIFICATION_ID = 247;
 
@@ -43,6 +44,7 @@ public class HangService extends Service {
     private View exitOverlay;
     private long guardMissingSince;
     private long lastGuardRestoreAt;
+    private boolean guardActivityVisible;
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             if (!Intent.ACTION_SCREEN_OFF.equals(intent.getAction()) || !AppState.isActive(context)) return;
@@ -148,9 +150,18 @@ public class HangService extends Service {
             return START_NOT_STICKY;
         }
 
+        if (intent != null && intent.hasExtra(EXTRA_GUARD_ACTIVITY_VISIBLE)) {
+            guardActivityVisible = intent.getBooleanExtra(EXTRA_GUARD_ACTIVITY_VISIBLE, false);
+        }
+
         acquireWakeLock();
         startForeground(NOTIFICATION_ID, buildNotification(AppState.endAt(this)));
-        if (!showGuardOverlay()) {
+        if (guardActivityVisible) {
+            // HangActivity itself supplies the black guard and exit slider. Keeping
+            // TYPE_APPLICATION_OVERLAY here would cover expanded chat bubbles,
+            // whose content is an application task embedded by System UI.
+            hideGuardOverlay();
+        } else if (!showGuardOverlay()) {
             stopSession();
             return START_NOT_STICKY;
         }
