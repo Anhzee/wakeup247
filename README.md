@@ -10,6 +10,10 @@
 - Lớp bảo vệ nằm trên các ứng dụng: Home/Recent có thể đổi tác vụ phía dưới nhưng không làm lộ hoặc thao tác được app đó trước khi trượt dừng.
 - Thanh thông báo, nội dung mở rộng, trả lời nhanh và điều khiển nhạc của System UI vẫn hoạt động.
 - Thanh trạng thái và điều hướng mặc định ẩn; vuốt từ mép trên để hiện bảng thông báo rồi tự ẩn lại khi đóng.
+- Nền bảo vệ không nhận chạm; chỉ thanh trượt là cửa sổ tương tác, nên cử chỉ mép trên được chuyển cho System UI mà app phía dưới vẫn bị che/chặn.
+- Khi phiên đã chạy, chạm phím nhanh sẽ mở lại màn hình treo thay vì dừng nhầm phiên; trên màn hình khóa dùng đường mở Activity riêng của TileService.
+- Trên Xiaomi/HyperOS có nút mở thẳng **Quyền khác** để bật “Hiển thị trên màn hình khóa” và “Mở cửa sổ khi chạy nền”; tile mở Activity rồi thu bảng Quick Settings trên keyguard.
+- Cử chỉ Back mới bị chặn; Home/Recent hoặc trợ lý AI làm rời màn hình treo sẽ bị phát hiện và task treo được đưa lại lên trước ngay.
 - Quick Settings tile **Treo máy** để bật vô hạn hoặc dừng nhanh.
 - Hiển thị phía trên màn hình khóa; khi bấm nút nguồn trong phiên treo, app thử bật lại màn hình bảo vệ.
 - Khôi phục phiên sau khi khởi động máy và tùy chọn dừng khi pin thấp.

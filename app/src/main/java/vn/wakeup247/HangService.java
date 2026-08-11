@@ -18,13 +18,17 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.service.quicksettings.TileService;
+import android.util.Log;
 import android.view.Gravity;
+import android.view.View;
 import android.view.WindowManager;
 
 import java.util.Locale;
 
 public class HangService extends Service {
+    private static final String TAG = "WakeUp247";
     static final String ACTION_START = "vn.wakeup247.START";
+    static final String ACTION_ENSURE = "vn.wakeup247.ENSURE";
     static final String ACTION_STOP = "vn.wakeup247.STOP";
     static final String ACTION_ADD_30 = "vn.wakeup247.ADD_30";
     static final String EXTRA_DURATION_MS = "duration_ms";
@@ -34,7 +38,11 @@ public class HangService extends Service {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private PowerManager.WakeLock wakeLock;
     private WindowManager windowManager;
+    private View blockerOverlay;
     private GuardView guardOverlay;
+    private View exitOverlay;
+    private long guardMissingSince;
+    private long lastGuardRestoreAt;
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) {
             if (!Intent.ACTION_SCREEN_OFF.equals(intent.getAction()) || !AppState.isActive(context)) return;
@@ -77,6 +85,36 @@ public class HangService extends Service {
         }
     };
 
+    private final Runnable keyguardWatcher = new Runnable() {
+        @Override public void run() {
+            if (!AppState.isActive(HangService.this)) return;
+            if (HangActivity.isGuardResumed()) {
+                guardMissingSince = 0L;
+            } else {
+                long now = android.os.SystemClock.elapsedRealtime();
+                if (guardMissingSince == 0L) guardMissingSince = now;
+                // Notification shade is a SystemUI window and normally leaves the
+                // activity resumed. A paused activity here means Home, Recents, an
+                // assistant, or another activity actually displaced the guard.
+                if (now - guardMissingSince >= 150L && now - lastGuardRestoreAt >= 500L) {
+                    lastGuardRestoreAt = now;
+                    Log.i(TAG, "Restoring displaced guard activity");
+                    Intent restore = new Intent(HangService.this, HangActivity.class)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                                    | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                    | Intent.FLAG_ACTIVITY_SINGLE_TOP
+                                    | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                    try {
+                        startActivity(restore);
+                    } catch (RuntimeException error) {
+                        Log.w(TAG, "Guard restore rejected", error);
+                    }
+                }
+            }
+            handler.postDelayed(this, 100L);
+        }
+    };
+
     @Override public void onCreate() {
         super.onCreate();
         createChannel();
@@ -98,10 +136,13 @@ public class HangService extends Service {
             long current = AppState.endAt(this);
             long base = Math.max(System.currentTimeMillis(), current);
             AppState.setActive(this, true, base + 30 * 60_000L);
-        } else if (intent != null) {
-            long duration = intent == null ? 0L : intent.getLongExtra(EXTRA_DURATION_MS, 0L);
+        } else if (ACTION_START.equals(action)) {
+            long duration = intent.getLongExtra(EXTRA_DURATION_MS, 0L);
             long endAt = duration > 0 ? System.currentTimeMillis() + duration : 0L;
             AppState.setActive(this, true, endAt);
+        } else if (!ACTION_ENSURE.equals(action) && intent != null) {
+            stopSelf();
+            return START_NOT_STICKY;
         } else if (!AppState.isActive(this)) {
             stopSelf();
             return START_NOT_STICKY;
@@ -115,6 +156,8 @@ public class HangService extends Service {
         }
         handler.removeCallbacks(ticker);
         handler.post(ticker);
+        handler.removeCallbacks(keyguardWatcher);
+        handler.post(keyguardWatcher);
         requestTileUpdate();
         return START_STICKY;
     }
@@ -128,49 +171,98 @@ public class HangService extends Service {
     }
 
     private boolean showGuardOverlay() {
-        if (guardOverlay != null) return true;
+        if (blockerOverlay != null && guardOverlay != null && exitOverlay != null) return true;
         try {
             windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-            guardOverlay = new GuardView(this, this::stopSession);
-            WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+            int backgroundFlags = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                    | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                    | WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
+                    | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                    | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS;
+
+            // HyperOS caps a non-touchable overlay's obscuring alpha at 0.8.
+            // Two same-UID layers combine above Android's pass-through threshold,
+            // blocking hidden app touches while leaving trusted System UI gestures above them.
+            blockerOverlay = new View(this);
+            blockerOverlay.setBackgroundColor(android.graphics.Color.BLACK);
+            WindowManager.LayoutParams blockerParams = new WindowManager.LayoutParams(
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                            | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                            | WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
-                            | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                            | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    backgroundFlags,
                     PixelFormat.OPAQUE);
-            params.gravity = Gravity.TOP | Gravity.START;
-            params.systemUiVisibility = android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            blockerParams.gravity = Gravity.TOP | Gravity.START;
+            blockerParams.alpha = 0.8f;
+            windowManager.addView(blockerOverlay, blockerParams);
+
+            guardOverlay = new GuardView(this);
+            WindowManager.LayoutParams backgroundParams = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    backgroundFlags,
+                    PixelFormat.OPAQUE);
+            backgroundParams.gravity = Gravity.TOP | Gravity.START;
+            backgroundParams.systemUiVisibility = android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                     | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
                     | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                     | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                     | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                     | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
             int dim = AppState.prefs(this).getInt(AppState.KEY_DIM_LEVEL, 1);
-            params.screenBrightness = dim == 0 ? 0.01f : dim == 1 ? 0.03f : 0.08f;
+            backgroundParams.screenBrightness = dim == 0 ? 0.01f : dim == 1 ? 0.03f : 0.08f;
+            backgroundParams.alpha = 0.8f;
             if (android.os.Build.VERSION.SDK_INT >= 28) {
-                params.layoutInDisplayCutoutMode =
+                backgroundParams.layoutInDisplayCutoutMode =
                         WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
             }
-            windowManager.addView(guardOverlay, params);
+            windowManager.addView(guardOverlay, backgroundParams);
+
+            exitOverlay = GuardView.createExitOverlay(this, this::stopSession);
+            WindowManager.LayoutParams exitParams = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    GuardView.exitOverlayHeight(this),
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            | WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
+                            | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                            | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT);
+            exitParams.gravity = Gravity.BOTTOM | Gravity.START;
+            windowManager.addView(exitOverlay, exitParams);
             return true;
         } catch (RuntimeException error) {
-            guardOverlay = null;
+            hideGuardOverlay();
             return false;
         }
     }
 
     private void hideGuardOverlay() {
-        if (guardOverlay == null || windowManager == null) return;
+        if (windowManager == null) return;
+        if (exitOverlay != null) {
+            try {
+                windowManager.removeViewImmediate(exitOverlay);
+            } catch (RuntimeException ignored) {
+                // The system may already have removed it after permission revocation.
+            }
+            exitOverlay = null;
+        }
+        if (guardOverlay == null) return;
         try {
             windowManager.removeViewImmediate(guardOverlay);
         } catch (RuntimeException ignored) {
             // The system may already have removed it after permission revocation.
         }
         guardOverlay = null;
+        if (blockerOverlay != null) {
+            try {
+                windowManager.removeViewImmediate(blockerOverlay);
+            } catch (RuntimeException ignored) {
+                // The system may already have removed it after permission revocation.
+            }
+            blockerOverlay = null;
+        }
     }
 
     private Notification buildNotification(long endAt) {
@@ -229,6 +321,7 @@ public class HangService extends Service {
 
     private void stopSession() {
         handler.removeCallbacks(ticker);
+        handler.removeCallbacks(keyguardWatcher);
         hideGuardOverlay();
         AppState.setActive(this, false, 0L);
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
@@ -245,6 +338,7 @@ public class HangService extends Service {
 
     @Override public void onDestroy() {
         handler.removeCallbacks(ticker);
+        handler.removeCallbacks(keyguardWatcher);
         hideGuardOverlay();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         unregisterReceiver(screenReceiver);

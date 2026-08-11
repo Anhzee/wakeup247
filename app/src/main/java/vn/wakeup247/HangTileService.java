@@ -6,6 +6,8 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.service.quicksettings.Tile;
 import android.service.quicksettings.TileService;
@@ -19,7 +21,9 @@ public class HangTileService extends TileService {
     @Override public void onClick() {
         super.onClick();
         if (AppState.isActive(this)) {
-            startService(new Intent(this, HangService.class).setAction(HangService.ACTION_STOP));
+            startForegroundService(new Intent(this, HangService.class)
+                    .setAction(HangService.ACTION_ENSURE));
+            launchGuardActivity();
             updateTile();
             return;
         }
@@ -42,10 +46,26 @@ public class HangTileService extends TileService {
                 .putExtra(HangService.EXTRA_DURATION_MS, 0L);
         startForegroundService(service);
 
-        Intent activity = new Intent(this, HangActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        openActivity(activity);
+        launchGuardActivity();
         updateTile();
+    }
+
+    private void launchGuardActivity() {
+        Intent activity = new Intent(this, HangActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                        | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        if (isLocked()) {
+            // Android's TileService contract recommends direct startActivity for
+            // safe activities that intentionally display above the keyguard.
+            startActivity(activity);
+            // Direct start is required above the keyguard, while this second call
+            // asks System UI to collapse the still-open Quick Settings panel.
+            new Handler(Looper.getMainLooper()).postDelayed(
+                    () -> openActivity(activity), 150L);
+        } else {
+            openActivity(activity);
+        }
     }
 
     @SuppressLint("StartActivityAndCollapseDeprecated")
@@ -64,9 +84,9 @@ public class HangTileService extends TileService {
         if (tile == null) return;
         boolean active = AppState.isActive(this);
         tile.setState(active ? Tile.STATE_ACTIVE : Tile.STATE_INACTIVE);
-        tile.setLabel(active ? "Đang treo" : "Treo máy");
+        tile.setLabel(active ? "Mở màn hình treo" : "Treo máy");
         if (Build.VERSION.SDK_INT >= 29) {
-            tile.setSubtitle(active ? "Chạm để dừng" : "Vô hạn");
+            tile.setSubtitle(active ? "Chạm để mở lại" : "Vô hạn");
         }
         tile.updateTile();
     }

@@ -111,6 +111,9 @@ public class MainActivity extends Activity {
         Button overlay = secondaryButton("Cho phép hiển thị trên ứng dụng khác");
         overlay.setOnClickListener(v -> requestOverlayPermission());
         root.addView(overlay);
+        Button lockScreen = secondaryButton("Quyền hiển thị trên màn hình khóa (Xiaomi)");
+        lockScreen.setOnClickListener(v -> openXiaomiOtherPermissions());
+        root.addView(lockScreen);
         Button battery = secondaryButton("Tắt tối ưu pin cho WakeUp 24/7");
         battery.setOnClickListener(v -> openBatteryPermission());
         root.addView(battery);
@@ -305,6 +308,22 @@ public class MainActivity extends Activity {
                     Uri.parse("package:" + getPackageName())));
         } catch (RuntimeException ignored) {
             startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION));
+        }
+    }
+
+    private void openXiaomiOtherPermissions() {
+        Intent miui = new Intent("miui.intent.action.APP_PERM_EDITOR");
+        miui.setClassName("com.miui.securitycenter",
+                "com.miui.permcenter.permissions.PermissionsEditorActivity");
+        miui.putExtra("extra_pkgname", getPackageName());
+        try {
+            startActivity(miui);
+            Toast.makeText(this,
+                    "Bật “Hiển thị trên màn hình khóa” và “Mở cửa sổ khi chạy nền”",
+                    Toast.LENGTH_LONG).show();
+        } catch (RuntimeException ignored) {
+            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getPackageName())));
         }
     }
 

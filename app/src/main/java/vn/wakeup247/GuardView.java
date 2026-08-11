@@ -38,6 +38,14 @@ final class GuardView extends FrameLayout {
     };
 
     GuardView(Context context, Runnable onStop) {
+        this(context, onStop, true);
+    }
+
+    GuardView(Context context) {
+        this(context, null, false);
+    }
+
+    private GuardView(Context context, Runnable onStop, boolean includeSlider) {
         super(context);
         setBackgroundColor(Color.BLACK);
         setKeepScreenOn(true);
@@ -62,11 +70,32 @@ final class GuardView extends FrameLayout {
         info.addView(note, new LinearLayout.LayoutParams(-1, -2));
         addView(info, infoLp);
 
+        if (includeSlider && onStop != null) {
+            SlideToExit slider = new SlideToExit(context, onStop);
+            LayoutParams slideLp = new LayoutParams(-1, dp(82));
+            slideLp.gravity = android.view.Gravity.BOTTOM;
+            slideLp.setMargins(dp(28), 0, dp(28), dp(38));
+            addView(slider, slideLp);
+        }
+    }
+
+    static View createExitOverlay(Context context, Runnable onStop) {
+        FrameLayout holder = new FrameLayout(context);
+        holder.setBackgroundColor(Color.TRANSPARENT);
         SlideToExit slider = new SlideToExit(context, onStop);
-        LayoutParams slideLp = new LayoutParams(-1, dp(82));
-        slideLp.gravity = android.view.Gravity.BOTTOM;
-        slideLp.setMargins(dp(28), 0, dp(28), dp(38));
-        addView(slider, slideLp);
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(-1, dp(context, 82));
+        params.gravity = android.view.Gravity.BOTTOM;
+        params.setMargins(dp(context, 28), 0, dp(context, 28), dp(context, 38));
+        holder.addView(slider, params);
+        return holder;
+    }
+
+    static int exitOverlayHeight(Context context) {
+        return dp(context, 120);
+    }
+
+    private static int dp(Context context, int value) {
+        return Math.round(value * context.getResources().getDisplayMetrics().density);
     }
 
     @Override protected void onAttachedToWindow() {
