@@ -12,6 +12,7 @@
 - Hiển thị phía trên màn hình khóa; khi bấm nút nguồn trong phiên treo, app thử bật lại màn hình bảo vệ.
 - Khôi phục phiên sau khi khởi động máy và tùy chọn dừng khi pin thấp.
 - Trang hướng dẫn quyền thông báo và loại trừ tối ưu pin.
+- Mục cập nhật trong ứng dụng tự kiểm tra GitHub Release mới nhất và mở đúng APK để tải.
 
 ## Build và cài đặt
 

@@ -40,6 +40,9 @@ public class MainActivity extends Activity {
     private Spinner durationSpinner;
     private EditText customMinutes;
     private TextView permissionSummary;
+    private TextView updateSummary;
+    private Button updateButton;
+    private String updateUrl;
     private Button startButton;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
@@ -115,6 +118,29 @@ public class MainActivity extends Activity {
         tile.setOnClickListener(v -> requestTile());
         root.addView(tile);
 
+        addSectionTitle("Cập nhật ứng dụng");
+        LinearLayout updatePanel = new LinearLayout(this);
+        updatePanel.setOrientation(LinearLayout.VERTICAL);
+        updateSummary = label("Phiên bản hiện tại: " + currentVersion(), 14, 0xFFAAB2C0);
+        updatePanel.addView(updateSummary);
+        updateButton = secondaryButton("Kiểm tra cập nhật");
+        LinearLayout.LayoutParams updateButtonLp = new LinearLayout.LayoutParams(-1, dp(48));
+        updateButtonLp.topMargin = dp(10);
+        updateButton.setLayoutParams(updateButtonLp);
+        updateButton.setOnClickListener(v -> {
+            if (updateUrl != null) {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl)));
+                } catch (RuntimeException error) {
+                    Toast.makeText(this, "Không mở được liên kết tải xuống", Toast.LENGTH_LONG).show();
+                }
+            } else {
+                checkForUpdates();
+            }
+        });
+        updatePanel.addView(updateButton);
+        root.addView(card("Phiên bản & cập nhật", updatePanel));
+
         TextView caveat = label("Lưu ý: WakeUp 24/7 giữ CPU và màn hình thức, nhưng bạn vẫn cần đặt ứng dụng nhận thông báo/Telegram thành “Không hạn chế pin” và bật tự khởi động trên Xiaomi, OPPO, vivo…", 13, 0xFF8F99A8);
         caveat.setPadding(dp(4), dp(18), dp(4), dp(18));
         root.addView(caveat);
@@ -130,6 +156,45 @@ public class MainActivity extends Activity {
         startLp.topMargin = dp(4);
         root.addView(startButton, startLp);
         setContentView(scroll);
+        root.post(this::checkForUpdates);
+    }
+
+    private void checkForUpdates() {
+        if (updateButton == null || !updateButton.isEnabled()) return;
+        updateUrl = null;
+        updateButton.setEnabled(false);
+        updateButton.setText("ĐANG KIỂM TRA…");
+        updateSummary.setText("Đang kết nối GitHub Releases…");
+        UpdateChecker.check(currentVersion(), result -> runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            updateButton.setEnabled(true);
+            if (result.error != null) {
+                updateSummary.setText("Không kiểm tra được: " + result.error);
+                updateSummary.setTextColor(0xFFFFC866);
+                updateButton.setText("THỬ LẠI");
+                return;
+            }
+            if (result.updateAvailable) {
+                updateUrl = result.downloadUrl != null ? result.downloadUrl : result.releaseUrl;
+                updateSummary.setText("Có bản mới " + result.latestVersion
+                        + " • đang dùng " + currentVersion());
+                updateSummary.setTextColor(0xFF78E08F);
+                updateButton.setText("TẢI CẬP NHẬT " + result.latestVersion);
+            } else {
+                updateSummary.setText("Bạn đang dùng bản mới nhất " + currentVersion());
+                updateSummary.setTextColor(0xFF78E08F);
+                updateButton.setText("KIỂM TRA LẠI");
+            }
+        }));
+    }
+
+    private String currentVersion() {
+        try {
+            String version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            return version == null ? "?" : version;
+        } catch (PackageManager.NameNotFoundException ignored) {
+            return "?";
+        }
     }
 
     private View card(String titleText, View body) {
